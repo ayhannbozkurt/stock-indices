@@ -8,11 +8,20 @@ from sklearn.preprocessing import StandardScaler
 import ruptures as rpt
 
 def fetch_bank_data(days=365):
-    # Tarih aralığını belirle
+    """
+    Fetches bank data for the specified number of days.
+
+    Args:
+        days (int): Number of days to fetch data for.
+
+    Returns:
+        pd.DataFrame: Combined bank data.
+    """
+    # Define date range
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=days)  # İstenilen gün sayısı kadar veri
+    start_date = end_date - timedelta(days=days)  # Get data for specified number of days
     
-    # Bütün banka hisselerinin listesi ve isimleri
+    # List of all bank stocks and their names
     banka_hisseleri = {
         "AKBNK.IS": "AKBANK",
         "ALBRK.IS": "ALBARAKA TÜRK",
@@ -28,56 +37,65 @@ def fetch_bank_data(days=365):
         "YKBNK.IS": "YAPI KREDİ"
     }
     
-    # XBANK endeksi indir
-    print("XBANK endeksi indiriliyor...")
+    # Download XBANK index
+    print("Downloading XBANK index...")
     xbank = yf.download("XBANK.IS", start=start_date, end=end_date)
     
-    # MultiIndex sütunlarını düzleştir
+    # Flatten MultiIndex columns
     if isinstance(xbank.columns, pd.MultiIndex):
         xbank.columns = xbank.columns.get_level_values(0)
     
-    # Tüm banka verilerini bir sözlükte topla
+    # Collect all bank data in a dictionary
     banka_verileri = {}
     for sembol, isim in banka_hisseleri.items():
         try:
-            print(f"{isim} verisi indiriliyor...")
+            print(f"Downloading {isim} data...")
             veri = yf.download(sembol, start=start_date, end=end_date)
             
-            # MultiIndex sütunlarını düzleştir
+            # Flatten MultiIndex columns
             if isinstance(veri.columns, pd.MultiIndex):
                 veri.columns = veri.columns.get_level_values(0)
             
-            # Boş veri kontrolü
+            # Check for empty data
             if len(veri) > 0:
                 banka_verileri[isim] = veri['Close']
-                print(f"{isim} verisi indirildi. Veri boyutu: {len(veri)}")
+                print(f"{isim} data downloaded. Data size: {len(veri)}")
             else:
-                print(f"{isim} için veri bulunamadı.")
+                print(f"No data found for {isim}.")
         except Exception as e:
-            print(f"{isim} verisi indirilirken hata: {str(e)}")
+            print(f"Error downloading {isim} data: {str(e)}")
     
-    # Tüm verileri tek bir DataFrame'de birleştir
+    # Combine all data into a single DataFrame
     df = pd.DataFrame(banka_verileri)
     df['XBANK'] = xbank['Close']
     
-    # Eksik verileri temizle
+    # Clean missing data
     df = df.dropna()
-    print(f"Birleştirilmiş veri boyutu: {df.shape}")
+    print(f"Combined data size: {df.shape}")
     
-    # En az 100 veri noktası olan bankaları filtrele
+    # Filter banks with at least 100 data points
     yeterli_veri_olan_bankalar = [kolon for kolon in df.columns if kolon != 'XBANK' and df[kolon].count() >= 100]
-    print(f"Yeterli verisi olan banka sayısı: {len(yeterli_veri_olan_bankalar)}")
+    print(f"Number of banks with sufficient data: {len(yeterli_veri_olan_bankalar)}")
     df = df[yeterli_veri_olan_bankalar + ['XBANK']]
     
     return df
 
 def analyze_bank_data(df):
-    # Normalize et (başlangıç değeri 100)
+    """
+    Analyzes bank data and returns normalized data, daily returns, and results.
+
+    Args:
+        df (pd.DataFrame): Bank data.
+
+    Returns:
+        tuple: Normalized data, daily returns, and results.
+    """
+    # Normalize (starting value = 100)
     df_normalized = df.copy()
     for kolon in df_normalized.columns:
         df_normalized[kolon] = df_normalized[kolon] / df_normalized[kolon].iloc[0] * 100
     
-    # Günlük değişimler
+    # Daily returns
     df_returns = df.pct_change().dropna()
     
     sonuclar = {}
@@ -85,10 +103,10 @@ def analyze_bank_data(df):
         if banka != 'XBANK':
             correlation, p_value = pearsonr(df_returns[banka], df_returns['XBANK'])
             
-            # Beta hesapla
+            # Calculate beta
             beta = np.cov(df_returns[banka], df_returns['XBANK'])[0, 1] / np.var(df_returns['XBANK'])
             
-            # Toplam performans (tüm dönem)
+            # Total performance (entire period)
             banka_perf = (df_normalized[banka].iloc[-1] / df_normalized[banka].iloc[0] - 1) * 100
             xbank_perf = (df_normalized['XBANK'].iloc[-1] / df_normalized['XBANK'].iloc[0] - 1) * 100
             
@@ -99,7 +117,7 @@ def analyze_bank_data(df):
                 'perf': banka_perf
             }
             
-    # XBANK için toplam performans
+    # Total performance for XBANK
     xbank_perf = (df_normalized['XBANK'].iloc[-1] / df_normalized['XBANK'].iloc[0] - 1) * 100
     sonuclar['XBANK_perf'] = xbank_perf
     
@@ -107,21 +125,27 @@ def analyze_bank_data(df):
 
 def cluster_banks(df_returns):
     """
-    Kümeleme analizi ile benzer hareket eden bankaları gruplandır
+    Groups banks with similar movement patterns using cluster analysis.
+
+    Args:
+        df_returns (pd.DataFrame): Daily returns.
+
+    Returns:
+        tuple: Clusters and metrics.
     """
-    # XBANK hariç analiz et
+    # Analyze excluding XBANK
     df_cluster = df_returns.drop(columns=['XBANK'])
     
-    # Boş değerleri temizle
+    # Clean missing values
     df_cluster = df_cluster.dropna(axis=1)
     
-    # Kümeleme için veriyi hazırla
+    # Prepare data for clustering
     features = pd.DataFrame(index=df_cluster.columns)
     
-    # Volatilite (standart sapma)
+    # Volatility (standard deviation)
     features['volatility'] = df_cluster.std()
     
-    # XBANK ile korelasyon
+    # Correlation with XBANK
     features['xbank_corr'] = [df_returns[col].corr(df_returns['XBANK']) for col in df_cluster.columns]
     
     # Beta
@@ -130,11 +154,11 @@ def cluster_banks(df_returns):
         for col in df_cluster.columns
     ]
     
-    # Öznitelikleri ölçeklendir
+    # Scale features
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
     
-    # Optimal küme sayısını belirle (Elbow yöntemi)
+    # Determine optimal number of clusters (Elbow method)
     distortions = []
     K_range = range(1, min(8, len(df_cluster.columns)))
     for k in K_range:
@@ -143,26 +167,26 @@ def cluster_banks(df_returns):
             kmeans.fit(features_scaled)
             distortions.append(kmeans.inertia_)
     
-    # Eğer yeterli veri yoksa
+    # If not enough data
     if len(K_range) <= 1:
         optimal_k = 1
     else:
-        # Basit elbow yöntemi - eğim değişimini kontrol et
+        # Simple elbow method - check slope change
         deltas = np.diff(distortions)
         if len(deltas) > 0:
             optimal_k = np.argmax(deltas) + 1
-            # Minimum 2 küme olsun
+            # Minimum 2 clusters
             optimal_k = max(2, optimal_k)
-            # Banka sayısının yarısından fazla olmasın
+            # Not more than half the number of banks
             optimal_k = min(optimal_k, len(df_cluster.columns) // 2)
         else:
             optimal_k = 1
     
-    # KMeans uygula
+    # Apply KMeans
     kmeans = KMeans(n_clusters=optimal_k, random_state=42)
     clusters_pred = kmeans.fit_predict(features_scaled)
     
-    # Sonuçları organize et
+    # Organize results
     clusters = {}
     for i, bank in enumerate(df_cluster.columns):
         cluster_id = int(clusters_pred[i])
@@ -170,24 +194,24 @@ def cluster_banks(df_returns):
             clusters[cluster_id] = []
         clusters[cluster_id].append(bank)
     
-    # Cluster merkezlerini orijinal özelliklere dönüştür
+    # Transform cluster centers back to original features
     cluster_centers = scaler.inverse_transform(kmeans.cluster_centers_)
     center_df = pd.DataFrame(
         cluster_centers, 
         columns=features.columns,
-        index=[f"Küme {i+1}" for i in range(optimal_k)]
+        index=[f"Cluster {i+1}" for i in range(optimal_k)]
     )
     
-    # Her kümenin XBANK ile korelasyonu
+    # Correlation of each cluster with XBANK
     cluster_xbank_corr = {}
     for cluster_id, banks in clusters.items():
-        # Her küme için ortalama getiriyi hesapla
+        # Calculate average return for each cluster
         cluster_returns = df_cluster[banks].mean(axis=1)
-        # XBANK ile korelasyonu
+        # Correlation with XBANK
         corr = np.corrcoef(cluster_returns, df_returns['XBANK'])[0, 1]
         cluster_xbank_corr[cluster_id] = corr
     
-    # Metrikleri hazırla
+    # Prepare metrics
     metrics = {
         'optimal_k': optimal_k,
         'distortions': distortions,
@@ -199,64 +223,80 @@ def cluster_banks(df_returns):
 
 def detect_structural_breaks(series, min_size=30, n_bkps=5):
     """
-    Zaman serisindeki yapısal kırılmaları tespit eder
+    Detects structural breaks in a time series.
+
+    Args:
+        series (pd.Series): Time series.
+        min_size (int): Minimum segment size.
+        n_bkps (int): Number of breaks.
+
+    Returns:
+        tuple: Break dates and algorithm.
     """
-    # Eksik verileri temizle
+    # Clean missing data
     clean_series = series.dropna()
     
-    # Ruptures algoritması için veriyi hazırla
+    # Prepare data for Ruptures algorithm
     signal = clean_series.values.reshape(-1, 1)
     
-    # Algoritma
-    # PELT algoritması için penalty parametresi kullanmalıyız, n_bkps yerine
+    # Algorithm
+    # For PELT algorithm, we need to use penalty parameter instead of n_bkps
     algo = rpt.Pelt(model="l2", min_size=min_size).fit(signal)
     
-    # İstenen kırılma sayısına göre uygun pen değerini hesapla
-    # Pelt.predict() metodu pen parametresi alıyor, n_bkps değil
-    # Manüel olarak pen değeri bulabiliriz
+    # Calculate appropriate pen value for desired number of breaks
+    # Pelt.predict() method takes pen parameter, not n_bkps
+    # We can find pen value manually
     pen_min = 1
     pen_max = 10000
-    pen = 1000  # Başlangıç değeri
+    pen = 1000  # Initial value
     
-    # Binary search ile uygun pen değerini bul
-    # Bu değer istediğimiz sayıda kırılma noktası verecek
+    # Find appropriate pen value using binary search
+    # This value will give us the desired number of break points
     bkps = algo.predict(pen=pen)
-    for _ in range(10):  # En fazla 10 deneme
-        if len(bkps) - 1 < n_bkps:  # Kırılma sayısı azdır, pen azalt
+    for _ in range(10):  # Maximum 10 attempts
+        if len(bkps) - 1 < n_bkps:  # Too few breaks, decrease pen
             pen_max = pen
             pen = (pen_min + pen)/2
-        elif len(bkps) - 1 > n_bkps:  # Kırılma sayısı fazladır, pen artır
+        elif len(bkps) - 1 > n_bkps:  # Too many breaks, increase pen
             pen_min = pen
             pen = (pen + pen_max)/2
         else:
-            break  # İstenen sayıda kırılma noktası bulundu
+            break  # Found desired number of break points
         bkps = algo.predict(pen=pen)
     
-    # n_bkps+1 nokta varsa, ilk ve son noktalar başlangıç ve bitiş
-    # eğer istediğimiz sayıyı bulamazsak, en azından yakın bir sonuç döndür
+    # n_bkps+1 points, first and last are start and end
+    # if we can't find the exact number, return the closest result
     
-    # Orijinal indekse dönüştür
+    # Convert to original index
     bkps_dates = [clean_series.index[i-1] if i < len(clean_series) else clean_series.index[-1] for i in bkps if i > 0]
     
     return bkps_dates, algo
 
 def analyze_structural_breaks(df, target_col="XBANK", n_bkps=5):
     """
-    Yapısal kırılmaları analiz edip sonuçları döndürür
+    Analyzes structural breaks and returns results.
+
+    Args:
+        df (pd.DataFrame): Data.
+        target_col (str): Target column.
+        n_bkps (int): Number of breaks.
+
+    Returns:
+        dict: Results.
     """
-    # Normalize edilmiş verileri kullan
+    # Use normalized data
     df_norm = df.copy()
     for col in df_norm.columns:
         df_norm[col] = df_norm[col] / df_norm[col].iloc[0] * 100
     
-    # Yapısal kırılmaları tespit et
+    # Detect structural breaks
     break_dates, algo = detect_structural_breaks(
         df_norm[target_col], 
         min_size=30, 
         n_bkps=n_bkps
     )
     
-    # Sonuçları hazırla
+    # Prepare results
     break_results = {
         'target': target_col,
         'break_dates': break_dates,
@@ -264,7 +304,7 @@ def analyze_structural_breaks(df, target_col="XBANK", n_bkps=5):
         'segments': []
     }
     
-    # Her segment için istatistikleri hesapla
+    # Calculate statistics for each segment
     segments = []
     prev_date = df_norm.index[0]
     
@@ -274,17 +314,17 @@ def analyze_structural_breaks(df, target_col="XBANK", n_bkps=5):
             
         segment_data = df_norm.loc[prev_date:date]
         
-        if len(segment_data) < 5:  # Çok kısa segmentleri atla
+        if len(segment_data) < 5:  # Skip very short segments
             continue
             
-        # Segment başlangıç ve bitiş değerleri
+        # Segment start and end values
         start_val = segment_data[target_col].iloc[0]
         end_val = segment_data[target_col].iloc[-1]
         
-        # Segment için trend (yüzde değişim)
+        # Trend for segment (percent change)
         trend_pct = ((end_val / start_val) - 1) * 100
         
-        # Volatilite (standart sapma)
+        # Volatility (standard deviation)
         volatility = df.loc[prev_date:date, target_col].pct_change().std() * 100
         
         segment_info = {
@@ -299,7 +339,7 @@ def analyze_structural_breaks(df, target_col="XBANK", n_bkps=5):
         segments.append(segment_info)
         prev_date = date
     
-    # Son segment
+    # Last segment
     if prev_date < df_norm.index[-1]:
         segment_data = df_norm.loc[prev_date:]
         
@@ -322,4 +362,4 @@ def analyze_structural_breaks(df, target_col="XBANK", n_bkps=5):
     
     break_results['segments'] = segments
     
-    return break_results 
+    return break_results

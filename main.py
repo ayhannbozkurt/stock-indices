@@ -3,15 +3,15 @@ from datetime import timedelta
 import data_utils
 import visualization
 
-# Sayfanın başlığını ve açıklamasını ekle
+# Add page title and description
 st.set_page_config(
-    page_title="Banka Endeksi Analizi",
+    page_title="Banking Index Analysis",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded"  # Sidebar'ı başlangıçta açık tut
+    initial_sidebar_state="expanded"  # Keep sidebar expanded initially
 )
 
-# CSS ile stil ekleyelim
+# Add CSS styling
 st.markdown("""
 <style>
     .main-header {
@@ -34,8 +34,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 class='main-header'>Banka Endeksi ve Hisseleri Analizi</h1>", unsafe_allow_html=True)
-st.write("Bu uygulama, Borsa Endeksi ve banka hisselerinin performansını karşılaştırır.")
+st.markdown("<h1 class='main-header'>Banking Index and Stocks Analysis</h1>", unsafe_allow_html=True)
+st.write("This application compares the performance of the Banking Index and bank stocks.")
 
 # Veri işleme
 @st.cache_data(ttl=timedelta(hours=6))
@@ -56,14 +56,14 @@ def load_data(days=365):
 with st.spinner("Veriler indiriliyor ve analiz ediliyor..."):
     df, df_normalized, df_returns, sonuclar, clusters, cluster_metrics, structural_breaks_xbank = load_data()
 # Bankacılık sektörüne genel bakış bölümü - kart stilinde metrikler
-st.markdown("<h2 class='sub-header'>Bankacılık Sektörü Genel Bakış</h2>", unsafe_allow_html=True)
+st.markdown("<h2 class='sub-header'>Banking Sector Overview</h2>", unsafe_allow_html=True)
 col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
     delta_class = "positive-delta" if sonuclar['XBANK_perf'] > 0 else "negative-delta"
     st.metric(
-        "Borsa Endeksi Performansı (Son 1 Yıl)", 
+        "Banking Index Performance (Last 1 Year)", 
         f"{sonuclar['XBANK_perf']:.2f}%", 
         delta=f"{sonuclar['XBANK_perf']:.2f}%",
         delta_color="normal"
@@ -79,12 +79,12 @@ with col2:
         en_iyi_banka = max(bankalar, key=lambda x: sonuclar[x]['perf'])
         en_iyi_perf = sonuclar[en_iyi_banka]['perf']
         st.metric(
-            f"En İyi Performans: {en_iyi_banka}", 
+            f"Best Performance: {en_iyi_banka}", 
             f"{en_iyi_perf:.2f}%", 
             delta=f"{en_iyi_perf - sonuclar['XBANK_perf']:.2f}%"
         )
     else:
-        st.warning("Yeterli banka verisi bulunamadı.")
+        st.warning("Insufficient bank data found.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with col3:
@@ -94,52 +94,52 @@ with col3:
         en_kotu_banka = min(bankalar, key=lambda x: sonuclar[x]['perf'])
         en_kotu_perf = sonuclar[en_kotu_banka]['perf']
         st.metric(
-            f"En Düşük Performans: {en_kotu_banka}", 
+            f"Worst Performance: {en_kotu_banka}", 
             f"{en_kotu_perf:.2f}%", 
             delta=f"{en_kotu_perf - sonuclar['XBANK_perf']:.2f}%"
         )
     else:
-        st.warning("Yeterli banka verisi bulunamadı.")
+        st.warning("Insufficient bank data found.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # Ana sekmeler - daha belirgin sekme stilleri
-st.markdown("<h2 class='sub-header'>Analizler</h2>", unsafe_allow_html=True)
-main_tabs = st.tabs(["📈 Temel Analizler", "🔍 Detaylı Analizler"])
+st.markdown("<h2 class='sub-header'>Analyses</h2>", unsafe_allow_html=True)
+main_tabs = st.tabs(["📈 Basic Analyses", "🔍 Detailed Analyses"])
 
 # Temel Analizler Sekmesi
 with main_tabs[0]:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("Normalize Edilmiş Fiyat Hareketleri")
+        st.subheader("Normalized Price Movements")
         fig = visualization.plot_normalized_prices(df_normalized)
         st.pyplot(fig)
     
     with col2:
-        st.subheader("Borsa Endeksi ile Korelasyon")
+        st.subheader("Banking Index Correlation")
         fig, bankalar_sorted = visualization.plot_correlations(sonuclar)
         st.pyplot(fig)
 
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("Borsa Endeksi ile Beta Katsayısı")
+        st.subheader("Banking Index Beta")
         fig, bankalar_beta_sorted = visualization.plot_betas(sonuclar)
         st.pyplot(fig)
     
     with col2:
-        st.subheader("Son 1 Yıllık Performans")
+        st.subheader("Last 1 Year Performance")
         fig, bankalar_perf_sorted = visualization.plot_performance(sonuclar)
         st.pyplot(fig)
 
 # Detaylı Analizler Sekmesi
 with main_tabs[1]:
     detail_tabs = st.tabs([
-        "Yapısal Kırılma Analizi", 
-        "Kümeleme Analizi", 
-        "Karşılaştırmalı Analizler",
-        "Performans Haritası",
-        "Ham Veri"
+        "Structural Break Analysis", 
+        "Cluster Analysis", 
+        "Comparative Analyses",
+        "Performance Map",
+        "Raw Data"
     ])
     
     # Yapısal Kırılma Analizi
@@ -147,7 +147,7 @@ with main_tabs[1]:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("Borsa Endeksi Yapısal Kırılma Analizi")
+            st.subheader("Banking Index Structural Break Analysis")
             
             # Kırılma figürü
             fig = visualization.plot_structural_breaks(df_normalized, structural_breaks_xbank)
@@ -155,14 +155,14 @@ with main_tabs[1]:
         
         with col2:
             # Diğer banka analizlerini oluştur
-            st.subheader("Diğer Bir Banka İçin Kırılma Analizi")
+            st.subheader("Structural Break Analysis for Another Bank")
             
             if bankalar:
-                selected_bank = st.selectbox("Banka Seçin", bankalar)
+                selected_bank = st.selectbox("Select a Bank", bankalar)
                 
                 if selected_bank:
                     # Seçilen banka için yapısal kırılma analizi
-                    with st.spinner(f"{selected_bank} için kırılma analizi yapılıyor..."):
+                    with st.spinner(f"Performing structural break analysis for {selected_bank}..."):
                         bank_break_results = data_utils.analyze_structural_breaks(
                             df, selected_bank, n_bkps=5
                         )
@@ -176,18 +176,18 @@ with main_tabs[1]:
         col1, col2 = st.columns([1, 1])
         
         with col1:
-            st.subheader("Banka Kümeleri")
+            st.subheader("Bank Clusters")
             
             # Küme üyeleri
             fig = visualization.plot_cluster_members(clusters)
             st.pyplot(fig)
             
             # Küme merkezleri
-            st.subheader("Küme Özellikleri")
+            st.subheader("Cluster Properties")
             st.dataframe(cluster_metrics['cluster_centers'].style.format('{:.4f}'))
         
         with col2:
-            st.subheader("Kümeleme Analizi Sonuçları")
+            st.subheader("Cluster Analysis Results")
             
             # Küme analizleri
             cluster_figs = visualization.plot_cluster_analysis(df_normalized, clusters, cluster_metrics)
@@ -196,8 +196,8 @@ with main_tabs[1]:
             st.pyplot(cluster_figs[1])
             
             # Korelasyon matrisi ısı haritası
-            st.subheader("Korelasyon Matrisi (Kümelere Göre)")
-            st.write("Bu ısı haritası, bankaların birbirleriyle olan korelasyonunu gösterir. Kırmızı çerçeveler kümeleri belirtir. Mavi tonlar pozitif korelasyonu, kırmızı tonlar negatif korelasyonu ifade eder.")
+            st.subheader("Correlation Matrix (By Clusters)")
+            st.write("This heatmap shows the correlation between banks. Red frames indicate clusters. Blue tones indicate positive correlation, red tones indicate negative correlation.")
             st.pyplot(cluster_figs[3])
     
     # Karşılaştırmalı Analizler
@@ -205,14 +205,14 @@ with main_tabs[1]:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("Yuvarlanır Korelasyon Analizi")
-            window_size = st.slider("Yuvarlanır Korelasyon Pencere Boyutu (Gün)", 15, 90, 30)
+            st.subheader("Rolling Correlation Analysis")
+            window_size = st.slider("Rolling Correlation Window Size (Days)", 15, 90, 30)
             
             # Bankalar listesi boş değilse grafiği çiz
             if bankalar:
                 # Banka seçimi
                 selected_banks = st.multiselect(
-                    "Bankaları Seçin (max. 5)", 
+                    "Select Banks (max. 5)", 
                     options=bankalar,
                     default=bankalar_sorted[:min(5, len(bankalar_sorted))]
                 )
@@ -226,12 +226,12 @@ with main_tabs[1]:
                     st.pyplot(fig)
         
         with col2:
-            st.subheader("Banka/Borsa Endeksi Performans Oranı")
+            st.subheader("Bank/Banking Index Performance Ratio")
             
             if bankalar:
                 # Banka seçimi
                 selected_banks = st.multiselect(
-                    "Bankaları Seçin (max. 5)", 
+                    "Select Banks (max. 5)", 
                     options=bankalar,
                     default=bankalar_beta_sorted[:min(5, len(bankalar_beta_sorted))],
                     key="perf_ratio_select"
@@ -248,12 +248,12 @@ with main_tabs[1]:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("Banka - Borsa Endeksi Normalize Fiyat Farkı")
+            st.subheader("Bank - Banking Index Normalized Price Difference")
             
             if bankalar:
                 # Banka seçimi
                 selected_banks = st.multiselect(
-                    "Bankaları Seçin (max. 5)", 
+                    "Select Banks (max. 5)", 
                     options=bankalar,
                     default=bankalar_perf_sorted[:min(5, len(bankalar_perf_sorted))],
                     key="norm_diff_select"
@@ -268,19 +268,19 @@ with main_tabs[1]:
                     st.pyplot(fig)
         
         with col2:
-            st.subheader("Beta - Performans İlişkisi")
+            st.subheader("Beta - Performance Relationship")
             fig = visualization.plot_beta_performance(sonuclar)
             st.pyplot(fig)
     
     # Performans Haritası
     with detail_tabs[3]:
-        st.subheader("Performans Haritası")
+        st.subheader("Performance Map")
         
-        st.write("Bankaların aylık performansını gösteren ısı haritası.")
+        st.write("A heatmap showing the monthly performance of banks.")
         if bankalar:
             # En fazla 10 banka göster
             selected_banks = st.multiselect(
-                "Bankaları Seçin (max. 10)", 
+                "Select Banks (max. 10)", 
                 options=bankalar,
                 default=bankalar_perf_sorted[:min(8, len(bankalar_perf_sorted))],
                 key="heatmap_select"
@@ -293,5 +293,5 @@ with main_tabs[1]:
     
     # Ham Veri
     with detail_tabs[4]:
-        st.subheader("Ham Fiyat Verileri")
+        st.subheader("Raw Price Data")
         st.dataframe(df)
